@@ -1,0 +1,88 @@
+from selenium import webdriver
+import pandas as pd
+
+browser = webdriver.Chrome()
+url = 'https://hamburg.r.mikatiming.de/2019/?page=1&event=HML&event_main_group=custom.meeting.marathon&pid=list&search%5Bsex%5D=M&search%5Bage_class%5D=%25'
+
+for x in range(1, 313):
+
+    if x == 1:
+        browser.get(url)
+    else:
+        browser.find_element_by_link_text('>').click()
+
+    # collect the data
+    place = browser.find_elements_by_css_selector('.place-primary')
+    temp_data = []
+    for element in place:
+        temp_data.append(element.text)
+    del temp_data[0]
+    place = temp_data
+
+    number = browser.find_elements_by_css_selector('.type-field:nth-child(1)')
+    temp_data = []
+    for element in number:
+         temp_data.append(element.text)
+    del temp_data[0]
+    number = []
+    for element in temp_data:
+        number.append(element[9:int(len(element))])
+
+    name = browser.find_elements_by_css_selector('.type-fullname a')
+    temp_data = []
+    for element in name:
+        temp_data.append(element.text)
+    name = temp_data
+
+    age_group = browser.find_elements_by_css_selector('.type-age_class')
+    temp_data = []
+    for element in age_group:
+        temp_data.append(element.text)
+    del temp_data[0]
+    age_group = []
+    for element in temp_data:
+        age_group.append(element[3:int(len(element))])
+
+    team = browser.find_elements_by_css_selector('.split')
+    temp_data = []
+    for element in team:
+        temp_data.append(element.text)
+    del temp_data[0]
+    team = []
+    for element in temp_data:
+       team.append(element[12:int(len(element))])
+
+    time = browser.find_elements_by_css_selector('.type-time')
+    temp_data = []
+    for element in time:
+       temp_data.append(element.text)
+    del temp_data[0:2]
+    finish = []
+    brutto = []
+    for element in temp_data:
+        if element[0] == 'F':
+            finish.append(element[7:len(element)])
+        else:
+            brutto.append(element[7:len(element)])
+
+    # store the data in a data frame
+    if x == 1 :
+        data = {'Place': place,
+                'Number': number,
+                'Name': name,
+                'Age Group': age_group,
+                'Team': team,
+                'Finish': finish,
+                'Brutto': brutto}
+        data = pd.DataFrame(data)
+    else:
+        for i in range(0, int(len(place))):
+            data = data.append({'Place': place[i],
+                                'Number': number[i],
+                                'Name': name[i],
+                                'Age Group': age_group[i],
+                                'Team': team[i],
+                                'Finish': finish[i],
+                                'Brutto': brutto[i]}, ignore_index=True)
+
+data.to_csv('Hamburg_marathon.csv')

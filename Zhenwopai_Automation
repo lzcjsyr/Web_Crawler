@@ -1,0 +1,103 @@
+import time
+import requests
+import pandas as pd
+from lxml import etree
+
+start_time = time.time()
+
+headers = {"user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 "
+                         "(KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36"}
+
+################ author ##############
+url_1 = "http://www.zhenwopai.com/recent"
+raw_cookies1 = "Hm_lvt_27877fb2a3a7644526d170d3b7fbb470=1580997011; " \
+               "JSESSIONID=node016povwk83bkayvzbz6gygi4e87287.node0;" \
+               " sym-ce=5bc3710583388bae3679d7412c4fc94416796341d08c" \
+               "817887b087fda29e8d6928e55086370891a751a4003bccba3305" \
+               "70b37ffe5c6f5b49b09f7d56ec6ed3e36d112d408fb3c2ec8737" \
+               "3208800a359827775605f83cb8548ba63d9eaa7d2295b7c2bb9a" \
+               "843c4a17eef3b7d549bdd305; Hm_lpvt_27877fb2a3a7644526" \
+               "d170d3b7fbb470=1582097870"
+
+cookies_author = {}
+for line in raw_cookies1.split(';'):
+    if line == "HttpOnly": break
+    key, value = line.split('=', 1)
+    cookies_author.update({key: value})
+author = requests.get(url_1, headers=headers, cookies=cookies_author)
+author_info = etree.HTML(author.text)
+names = author_info.xpath("//a[@class='author']/text()")
+
+normalize_names = []
+for element in names:
+    element = element.replace(' ', '')
+    element = element.replace('\n', '')
+    normalize_names.append(element)
+
+################ title & others ##############
+url_2 = "http://www.zhenwopai.com/admin/articles"
+raw_cookies2 = "Hm_lvt_27877fb2a3a7644526d170d3b7fbb470=1580997011;" \
+               " JSESSIONID=node016povwk83bkayvzbz6gygi4e87287.node" \
+               "0; sym-ce=5bc3710583388bae3679d7412c4fc94416796341d" \
+               "08c817887b087fda29e8d6928e55086370891a751a4003bccba" \
+               "330570b37ffe5c6f5b49b09f7d56ec6ed3e36d112d408fb3c2e" \
+               "c87373208800a359827775605f83cb8548ba63d9eaa7d2295b7" \
+               "c2bb9a843c4a17eef3b7d549bdd305; Hm_lpvt_27877fb2a3a" \
+               "7644526d170d3b7fbb470=1582098609"
+
+cookies_article = {}
+for line in raw_cookies2.split(';'):
+    if line == "HttpOnly": break
+    key, value = line.split('=', 1)
+    cookies_article.update({key: value})
+
+article = requests.get(url_2, headers=headers, cookies=cookies_article)
+article_info = etree.HTML(article.text)
+title = article_info.xpath("//h2/a/text()")
+others = article_info.xpath("//div/span[@class='ft-fade ft-smaller']/text()")
+
+normalize_others = []
+for element in others:
+    element = element.replace(' ', '')
+    element = element.replace('\n', '')
+    normalize_others.append(element)
+
+tag = []
+for element in normalize_others: tag.append(element[0:element.find('•2')])
+date = []
+for element in normalize_others: date.append(element[(element.find('•2')+1):(element.find('•2')+11)])
+hour = []
+for element in normalize_others: hour.append(element[(element.find('•浏览')-5):(element.find('•浏览'))])
+
+# construct the data frame
+data = pd.DataFrame(columns=['文章标题', '作者', '标签', '上传日期', '上传时间'])
+
+for i in range(int(len(title))):
+    data = data.append({'文章标题': title[i], '作者': normalize_names[i],'标签': tag[i],
+                        '上传日期': date[i], '上传时间': hour[i]}, ignore_index=True)
+
+starting_date = '2020-02-01'
+ending_data = '2020-02-16'
+data = data[(data['上传日期'] > starting_date) & (data['上传日期'] <= ending_data)]
+
+# summarize the survives
+name_list = data.iloc[:,1].tolist()
+finisher = []
+for name in name_list:
+    if name not in finisher: finisher.append(name)
+occurrence = []
+for i in range(int(len(finisher))):
+    occurrence.append(name_list.count(finisher[i]))
+
+survive = pd.DataFrame(columns=['完成者', '文章数量'])
+for i in range(int(len(finisher))):
+    survive = survive.append({'完成者': finisher[i], '文章数量': occurrence[i]}, ignore_index=True)
+print(survive)
+
+# writer to Excel file
+writer = pd.ExcelWriter(f"{starting_date} to {ending_data}.xlsx", engine='xlsxwriter')
+data.to_excel(writer, sheet_name='Sheet1')  # Default position, cell A1.
+survive.to_excel(writer, sheet_name='Sheet1', startcol=len(data.count())+3)
+writer.save()
+
+print("--- %s seconds ---" % (time.time() - start_time))
